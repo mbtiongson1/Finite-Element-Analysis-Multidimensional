@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import bvp1d as problem
+from assembler import assemble1d
 from matrix import matrixsolver
 from paths import csv_path
 from utils import print_table
@@ -130,19 +131,18 @@ def _build_mesh():
     raise ValueError("mesh_mode must be one of: m, h, elements, manual.")
 
 
-def _gauss_rule(order):
-    if order != 2:
-        raise ValueError("Only 2-point Gauss quadrature is supported.")
-    point = 1.0 / np.sqrt(3.0)
-    return [(-point, 1.0), (point, 1.0)]
+def _get_problem_data():
+    raw = getattr(problem, "problemData", {})
+    return {
+        "diffusion": raw.get("diffusion", problem.k),
+        "reaction": raw.get("reaction", problem.c),
+        "source": raw.get("source", problem.s),
+    }
 
 
-def _shape_functions(xi):
-    return np.array([(1.0 - xi) / 2.0, (1.0 + xi) / 2.0], dtype=float)
-
-
-def _shape_function_gradients(length):
-    return np.array([-1.0 / length, 1.0 / length], dtype=float)
+def _get_boundary_data():
+    raw = getattr(problem, "boundaryData", {})
+    return raw.get("left", problem.left_bc), raw.get("right", problem.right_bc)
 
 
 def _format_array(values):
@@ -166,64 +166,12 @@ def _print_vector(title, vector):
 
 
 def _assemble_system(nodes, print_level):
-    node_count = len(nodes)
-    K = np.zeros((node_count, node_count), dtype=float)
-    F = np.zeros(node_count, dtype=float)
-    gauss_points = _gauss_rule(problem.quadrature_order)
-    element_summaries = []
-
-    for e in range(node_count - 1):
-        x1 = nodes[e]
-        x2 = nodes[e + 1]
-        length = x2 - x1
-        if length <= 0:
-            raise ValueError(f"Element {e} has non-positive length.")
-
-        J = length / 2.0
-        dN_dx = _shape_function_gradients(length)
-        ke = np.zeros((2, 2), dtype=float)
-        fe = np.zeros(2, dtype=float)
-        gauss_rows = []
-
-        for xi, weight in gauss_points:
-            N = _shape_functions(xi)
-            x_gp = N[0] * x1 + N[1] * x2
-            k_val = float(problem.k(x_gp))
-            c_val = float(problem.c(x_gp))
-            s_val = float(problem.s(x_gp))
-
-            stiffness_part = k_val * np.outer(dN_dx, dN_dx)
-            reaction_part = c_val * np.outer(N, N)
-            source_part = N * s_val
-
-            ke += (stiffness_part + reaction_part) * J * weight
-            fe += source_part * J * weight
-
-            if print_level == "verbose":
-                gauss_rows.append((xi, x_gp, k_val, c_val, s_val))
-
-        dofs = [e, e + 1]
-        for local_i, global_i in enumerate(dofs):
-            F[global_i] += fe[local_i]
-            for local_j, global_j in enumerate(dofs):
-                K[global_i, global_j] += ke[local_i, local_j]
-
-        element_summaries.append(
-            {
-                "index": e,
-                "nodes": dofs,
-                "x1": x1,
-                "x2": x2,
-                "length": length,
-                "ke": ke.copy(),
-                "fe": fe.copy(),
-                "gauss_rows": gauss_rows,
-                "slope": 0.0,
-                "physical_flux": 0.0,
-            }
-        )
-
-    return K, F, element_summaries
+    return assemble1d(
+        nodes,
+        _get_problem_data(),
+        quadrature_order=problem.quadrature_order,
+        print_level=print_level,
+    )
 
 
 def _apply_neumann_bc(force_vector, left_bc, right_bc):
@@ -337,13 +285,14 @@ def _print_element_reports(element_summaries):
             print_table(["xi", "x", "k(x)", "c(x)", "s(x)"], rows)
 
 
-def _update_element_result_summary(element_summaries, nodes, solution):
+def _update_element_result_summary(element_summaries, nodes, solution, problem_data):
+    diffusion = problem_data["diffusion"]
     for item in element_summaries:
         i, j = item["nodes"]
         length = item["length"]
         slope = (solution[j] - solution[i]) / length
         x_mid = 0.5 * (item["x1"] + item["x2"])
-        physical_flux = -float(problem.k(x_mid)) * slope
+        physical_flux = -float(diffusion(x_mid)) * slope
         item["slope"] = slope
         item["physical_flux"] = physical_flux
 
@@ -455,8 +404,10 @@ def _plot_solution(nodes, solution, exact_callable):
 def main():
     _validate_problem_definition()
 
-    left_bc = _parse_bc("left_bc", problem.left_bc)
-    right_bc = _parse_bc("right_bc", problem.right_bc)
+    left_raw_bc, right_raw_bc = _get_boundary_data()
+    left_bc = _parse_bc("left_bc", left_raw_bc)
+    right_bc = _parse_bc("right_bc", right_raw_bc)
+    problem_data = _get_problem_data()
     nodes, mesh_info = _build_mesh()
 
     _print_problem_summary(nodes, mesh_info, left_bc, right_bc)
@@ -472,7 +423,7 @@ def main():
     reduction = _reduce_and_solve(K_full, F_full, left_bc, right_bc)
     solution = reduction["solution"]
     reactions = _compute_reactions(K_full, F_full, solution)
-    _update_element_result_summary(element_summaries, nodes, solution)
+    _update_element_result_summary(element_summaries, nodes, solution, problem_data)
 
     _print_matrix("Global stiffness matrix K", K_full)
     _print_vector("Global load vector F after Neumann BCs", F_full)
