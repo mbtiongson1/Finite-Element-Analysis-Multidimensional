@@ -1,2 +1,0 @@
-"""Non-core exploratory scripts."""
-

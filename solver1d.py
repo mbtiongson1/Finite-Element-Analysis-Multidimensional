@@ -7,10 +7,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from numerical_methods.matrix import matrixsolver
-from numerical_methods.paths import csv_path
-from numerical_methods.problems import bvpfea1d as problem
-from numerical_methods.utils import print_table
+import bvp1d as problem
+from matrix import matrixsolver
+from paths import csv_path
+from utils import print_table
 
 
 TOL = 1e-9
@@ -200,15 +200,7 @@ def _assemble_system(nodes, print_level):
             fe += source_part * J * weight
 
             if print_level == "verbose":
-                gauss_rows.append(
-                    (
-                        xi,
-                        x_gp,
-                        k_val,
-                        c_val,
-                        s_val,
-                    )
-                )
+                gauss_rows.append((xi, x_gp, k_val, c_val, s_val))
 
         dofs = [e, e + 1]
         for local_i, global_i in enumerate(dofs):
@@ -216,8 +208,6 @@ def _assemble_system(nodes, print_level):
             for local_j, global_j in enumerate(dofs):
                 K[global_i, global_j] += ke[local_i, local_j]
 
-        slope = 0.0
-        physical_flux = 0.0
         element_summaries.append(
             {
                 "index": e,
@@ -228,8 +218,8 @@ def _assemble_system(nodes, print_level):
                 "ke": ke.copy(),
                 "fe": fe.copy(),
                 "gauss_rows": gauss_rows,
-                "slope": slope,
-                "physical_flux": physical_flux,
+                "slope": 0.0,
+                "physical_flux": 0.0,
             }
         )
 

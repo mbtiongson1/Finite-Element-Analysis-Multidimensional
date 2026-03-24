@@ -1,451 +1,259 @@
-# Euler, Heun, Runge-Kutta Numerical Methods with Polynomial Fitting
+# Root-Level 1D Finite Element Solver
 
-Complete numerical analysis framework for solving first-order initial value problems (IVPs), systems of IVPs, and approximating solutions with polynomial fitting methods.
+This repository contains a flattened root-level finite element analysis workflow centered on a 1D scalar boundary value solver. The current implementation solves linear second-order problems of the form:
 
-## Overview
-
-This project implements:
-
-**Numerical Integration Methods (Single IVP):**
-- Euler Method
-- Predictor-Corrector (Heun)
-- Ralston (RK2.2)
-- Runge-Kutta 3rd Order (RK3)
-- Classical Runge-Kutta (RK4)
-
-**Numerical Integration Methods (System IVP):**
-- Heun Method for systems
-- RK4 Method for systems
-- Multi-method system comparison runner
-
-**Polynomial Fitting Methods:**
-- Vandermonde Matrix Method
-- Lagrange Interpolation
-- Least-Squares fitting comparison across selected methods
-
-**Supporting Features:**
-- Finite Difference derivative calculations
-- Smart sampling and validation controls
-- Optional actual/exact solution comparison
-- CSV export of results
-- Comparative visualization and analysis
-
----
-
-## Project Structure
-
-```
-├── numerical_methods/              # Canonical Python package (import from here)
-│   ├── problems/                   # Edit configs here (single IVP, systems, shooting, etc.)
-│   ├── methods/                    # Individual method scripts (Euler/Heun/RK...)
-│   ├── main/                       # Main drivers (solver/systems/shooting/function)
-│   ├── fitting/                    # Vandermonde/Lagrange/least-squares modules
-│   ├── fd/                         # Finite-difference workflows
-│   ├── experiments/                # Scratch/analysis scripts
-│   ├── utils.py
-│   ├── matrix.py
-│   └── paths.py                    # out/ path helpers
-├── docs/
-│   └── index.html
-├── out/                            # generated outputs (ignored by git)
-├── root/                           # optional wrapper scripts (python root/solver.py, etc.)
-└── README.md
+```text
+-(k(x) u'(x))' + c(x) u(x) = s(x)
 ```
 
----
+on a 1D domain with configurable boundary conditions, mesh controls, CSV export, and optional plotting.
 
-## Quick Start
+## Current Scope
 
-### 1. Configure Your Problem
+- 1D finite element solver only
+- Scalar linear boundary value problems
+- Two-node linear elements
+- 2-point Gauss quadrature
+- Dirichlet and Neumann boundary conditions
+- Uniform or manually specified meshes
+- Optional exact-solution comparison
+- CSV output and optional matplotlib plots
 
-- Use `numerical_methods/problems/ivp.py` for single ODEs: `y' = f(x, y)`
-- Use `numerical_methods/problems/ivpsystems.py` for systems:
-  - `x' = f(x, y, t)`
-  - `y' = g(x, y, t)`
+## Repository Layout
 
-### 2. Select Method(s)
-
-- In `numerical_methods/problems/ivp.py`, set:
-  - `method = 'euler' | 'heun' | 'rk22' | 'rk3' | 'rk4'`
-  - `ls_methods = [...]` for least-squares comparisons
-- In `numerical_methods/problems/ivpsystems.py`, set:
-  - `method = 'heun' | 'rk4'` (for system-focused scripts)
-- In `numerical_methods/main/systems.py`, use:
-  - `active_methods = ['euler', 'heun', 'ral', 'rk3', 'rk4']` (any subset)
-
-### 3. Run a Driver
-
-```bash
-# Preferred (module runs)
-python -m numerical_methods.main.function
-python -m numerical_methods.main.solver
-python -m numerical_methods.main.systems
-python -m numerical_methods.fd.FD
-
-# Optional wrapper scripts (if you prefer python <file>.py style)
-python root/function.py
-python root/solver.py
-python root/systems.py
-python root/FD.py
+```text
+.
+├── solver1d.py            # Main 1D solver entrypoint
+├── bvp1d.py               # Problem definition and solver settings
+├── matrix.py              # Linear system solver helper
+├── paths.py               # Output-path utilities
+├── utils.py               # Console/plot helper utilities
+├── root/
+│   ├── _root_bootstrap.py # Wrapper bootstrap for future entrypoints
+│   └── solver1d.py        # Optional wrapper for the root-level solver
+├── out/
+│   └── csv/               # Generated CSV outputs
+└── docs/
 ```
 
-### 4. Run Individual Methods
+## Requirements
 
-```bash
-python -m numerical_methods.methods.euler
-python -m numerical_methods.methods.heun
-python -m numerical_methods.methods.rk22
-python -m numerical_methods.methods.rk3
-python -m numerical_methods.methods.rk4
-python -m numerical_methods.methods.heunsystems
-python -m numerical_methods.methods.rk4systems
+The active runtime dependency set is small:
 
-# Optional wrappers
-python root/rk4.py
-```
+- `numpy` is required
+- `matplotlib` is optional, but needed if `plot_result = True`
 
-Outputs that are written to disk (CSVs) are written under `out/csv/`.
+Standard-library modules already used by the project and do not need installation:
 
----
+- `csv`
+- `dataclasses`
+- `pathlib`
 
-## Numerical Methods
+Recommended environment:
 
-### Core Integration Methods (Single IVP)
+- Python 3.9+
 
-All single-IVP methods solve `y' = f(x, y)` with initial condition `y(x0) = y0`.
-
-**Implementation note:** counter-based loops are used to avoid floating-point drift in endpoint stepping.
-
-#### Euler Method
-
-```
-y_{n+1} = y_n + h*f(x_n, y_n)
-```
-
-#### Heun Method (Predictor-Corrector)
-
-```
-Predictor:  y_p = y_n + h*f(x_n, y_n)
-Corrector:  y_{n+1} = y_n + (h/2)*[f(x_n, y_n) + f(x_{n+1}, y_p)]
-```
-
-#### RK2.2 (Ralston)
-
-```
-k1 = h*f(x_n, y_n)
-k2 = h*f(x_n + (3/4)h, y_n + (3/4)k1)
-y_{n+1} = y_n + (1/3)k1 + (2/3)k2
-```
-
-#### RK3 (Kutta 3rd order)
-
-```
-k1 = h*f(x_n, y_n)
-k2 = h*f(x_n + h/2, y_n + k1/2)
-k3 = h*f(x_n + h, y_n - k1 + 2k2)
-y_{n+1} = y_n + (1/6)*(k1 + 4k2 + k3)
-```
-
-#### RK4 (Classical)
-
-```
-k1 = h*f(x_n, y_n)
-k2 = h*f(x_n + h/2, y_n + k1/2)
-k3 = h*f(x_n + h/2, y_n + k2/2)
-k4 = h*f(x_n + h, y_n + k3)
-y_{n+1} = y_n + (1/6)*(k1 + 2k2 + 2k3 + k4)
-```
-
-### System IVP Methods
-
-System scripts solve:
-
-```
-x' = f(x, y, t)
-y' = g(x, y, t)
-```
-
-Implemented system solvers:
-- Heun predictor-corrector (`heunsystems.py`)
-- RK4 (`rk4systems.py`)
-- Combined comparison with tables and plots (`numerical_methods/main/systems.py`)
-
----
-
-## Polynomial Fitting Methods
-
-### Data Sampling Strategy
-
-To avoid overfitting and enforce valid polynomial selection:
-
-1. Validate spacing/selection constraints
-2. Sample points consistently across the interval
-3. Build polynomial using selected points
-
-### Vandermonde Matrix Method
-
-Constructs and solves:
-
-```
-V * a = y
-```
-
-where `a` contains polynomial coefficients.
-
-**Run standalone:**
-
-```bash
-python vandermonde.py
-python vandermonde_manual.py
-```
-
-### Lagrange Interpolation
-
-Constructs interpolation polynomial directly from selected data points.
-
-**Run standalone:**
-
-```bash
-python lagrange.py
-```
-
-### Least-Squares Comparison
-
-Fits degree-`p` polynomial models for methods listed in `ls_methods`.
-
-**Run via:**
-
-```bash
-python function.py
-```
-
----
-
-## Finite Difference Calculations
-
-Module `FD.py` computes finite-difference approximations from numerical method outputs.
-
-Implemented formulas include:
-- Forward difference
-- Central difference
-- Backward difference
-
----
-
-## Configuration
-
-### Single IVP (`numerical_methods/problems/ivp.py`)
-
-```python
-import math
-
-def f(x, y):
-    return math.sqrt(x) * math.sin(2*x) - 5*y
-
-x0 = 0
-y0 = 0
-xn = 2.4
-
-# choose one style
-m = 1
-h = 0.3 / (2 ** m)
-# n = 9
-# h = xn / (n - 1)
-
-method = 'heun'                      # euler, heun, rk22, rk3, rk4
-p = 10
-ls_methods = ['euler', 'heun']
-
-y_actual = None                      # or list of values, or generated values
-```
-
-### System IVP (`numerical_methods/problems/ivpsystems.py`)
-
-```python
-import math
-
-def f(x, y, t):
-    return x*y + t
-
-def g(x, y, t):
-    return y*t + x
-
-x0 = 1
-y0 = -1
-t0 = 0
-tn = 0.2
-
-m = 0
-h = 0.05 / (2 ** m)
-# n = 9
-# h = tn / (n - 1)
-
-method = 'rk4'                       # heun or rk4
-p = 10
-ls_methods = ['heun', 'rk4']
-
-x_actual, y_actual = None, None      # or generated/manual lists
-```
-
----
-
-## Main Orchestrators
-
-### `numerical_methods/main/function.py`
-
-Single-IVP end-to-end workflow:
-1. Compute numerical solution for `method`
-2. Build Vandermonde and Lagrange polynomials
-3. Run least-squares across `ls_methods`
-4. Plot and export results to `out/csv/output_fit.csv`
-
-### `numerical_methods/main/solver.py`
-
-Compares single-IVP methods in one run and can compute errors when `y_actual` is provided.
-
-### `numerical_methods/main/systems.py`
-
-Compares selected system-IVP methods (`active_methods`) with optional actual-solution overlays and error plots.
-
-### `numerical_methods/main/shooting.py`
-
-Compares selected shooting-problem methods (`active_methods`) with optional actual-solution overlays and error plots.
-
----
-
-## Testing Framework (`test.py`)
-
-Used to compare selected outputs across refinements and inspect consistency.
-
-Run with:
-
-```bash
-python test.py
-```
-
----
-
-## CSV Export
-
-Generated files may include:
-- `out/csv/output.csv` (single-IVP multi-method comparison)
-- `out/csv/output_fit.csv` (fitting workflow export)
-- `out/csv/output_systems_x.csv` and `out/csv/output_systems_y.csv` (system-IVP comparison tables)
-- `out/csv/output_systems_z.csv` (shooting workflow table, if produced)
-- `out/csv/FD.csv` (finite difference table)
-
----
-
-## Utilities (`utils.py`)
-
-Helper functions include:
-- `print_table(...)`
-- `print_table_csv(...)`
-- `plot_polynomial(...)`
-- `plot_polynomials_compare(...)`
-
-Utilities live at `numerical_methods/utils.py` and are imported as `numerical_methods.utils`.
-
----
-
-## Example Usage
-
-### Single IVP Example
-
-1. Set in `numerical_methods/problems/ivp.py`:
-
-```python
-def f(x, y):
-    return -2*x*y
-
-x0 = 0
-y0 = 1
-xn = 2
-method = 'rk4'
-y_actual = None
-```
-
-2. Run:
-
-```bash
-python -m numerical_methods.main.solver
-```
-
-### System IVP Example
-
-1. Set in `numerical_methods/problems/ivpsystems.py`:
-
-```python
-def f(x, y, t):
-    return x + y
-
-def g(x, y, t):
-    return x - y
-
-x0 = 1
-y0 = 0
-t0 = 0
-tn = 1
-```
-
-2. Run:
-
-```bash
-python -m numerical_methods.main.systems
-```
-
----
-
-## Key Features
-
-- Accurate step progression with counter-based loops
-- Multiple numerical methods for single and system IVPs
-- Optional exact/actual-solution error analysis
-- Polynomial approximation (Vandermonde, Lagrange, least-squares)
-- CSV + console + plot outputs for analysis
-- Scripts usable as standalone runs for coursework workflows
-
----
-
-## Troubleshooting
-
-**`TypeError: object of type 'NoneType' has no len()`**
-- Cause: Script expects actual data but `y_actual` (or `x_actual, y_actual`) is `None`.
-- Fix: Use updated scripts and keep actual arrays as either valid lists or `None` consistently.
-
-**Actual/reference arrays do not match expected length**
-- Cause: Provided actual values do not align with computed checkpoints.
-- Fix: Regenerate from helper functions using the same interval/step settings, or supply lists with consistent lengths.
-
-**`Unknown method` error in `function.py`**
-- Cause: `method` not in supported set for that script.
-- Fix: Use one of `euler`, `heun`, `rk22`, `rk4` for `function.py`.
-
-**Plots not appearing**
-- Cause: Missing matplotlib or non-interactive backend.
-- Fix: `pip install matplotlib` and run in a graphical session.
-
-**Numerical instability or oscillation**
-- Cause: Step size too large for the problem dynamics.
-- Fix: Reduce `h` (or increase refinement `m`/`n`) and verify ODE/system definitions.
-
----
-
-## Dependencies
-
-- Python 3.7+
-- NumPy
-- Matplotlib
-- `math` (standard library)
-
-Install with:
+Install dependencies with:
 
 ```bash
 pip install numpy matplotlib
 ```
 
----
+If you do not need plots, `numpy` alone is sufficient:
 
-## License
+```bash
+pip install numpy
+```
 
-Academic use for numerical methods coursework.
+## Running the Solver
+
+Preferred direct execution:
+
+```bash
+python -m solver1d
+```
+
+Optional wrapper execution:
+
+```bash
+python root/solver1d.py
+```
+
+The wrapper is kept so the bootstrap mechanism under `root/_root_bootstrap.py` remains available for future solvers and tools.
+
+## Problem Configuration
+
+Edit `bvp1d.py` to define the problem being solved.
+
+### Governing Functions
+
+You provide:
+
+- `k(x)` for the diffusion or stiffness coefficient
+- `c(x)` for the reaction coefficient
+- `s(x)` for the source term
+
+### Boundary Conditions
+
+Boundary conditions are defined as dictionaries:
+
+```python
+left_bc = {"type": "dirichlet", "value": 0.0}
+right_bc = {"type": "neumann", "value": 1.0}
+```
+
+Supported types:
+
+- `dirichlet`
+- `neumann`
+
+At least one Dirichlet boundary condition is required for a stable solve.
+
+### Mesh Controls
+
+Available mesh modes:
+
+- `"m"`: uses `base_h / (2 ** m)`
+- `"h"`: uses explicit `h`
+- `"elements"`: uses explicit `num_elements`
+- `"manual"`: uses `manual_nodes`
+
+Examples:
+
+```python
+mesh_mode = "elements"
+num_elements = 8
+```
+
+```python
+mesh_mode = "manual"
+manual_nodes = [0.0, 0.1, 0.2, 0.5, 1.0]
+```
+
+### Output and Reporting Controls
+
+These settings are also defined in `bvp1d.py`:
+
+- `quadrature_order`
+- `print_level`
+- `export_csv`
+- `plot_result`
+- `exact_solution`
+
+Current supported values:
+
+- `quadrature_order = 2` only
+- `print_level = "stage" | "verbose" | "final"`
+
+## Example Configuration
+
+```python
+problem_name = "Sample 1-D Poisson BVP"
+
+x0 = 0.0
+xn = 1.0
+
+def k(x):
+    return 1.0
+
+def c(x):
+    return 0.0
+
+def s(x):
+    return 1.0
+
+left_bc = {"type": "dirichlet", "value": 0.0}
+right_bc = {"type": "dirichlet", "value": 0.0}
+
+mesh_mode = "elements"
+num_elements = 8
+
+quadrature_order = 2
+print_level = "verbose"
+export_csv = True
+plot_result = True
+
+def exact_solution(x):
+    return 0.5 * x * (1.0 - x)
+```
+
+## Solver Output
+
+During execution, the solver can print:
+
+- problem summary
+- mesh and degree-of-freedom table
+- local element matrices and vectors
+- Gauss-point data
+- global assembled system
+- reduced system for unknown DOFs
+- nodal solution table
+- exact-solution error table, if provided
+- reaction/residual vector
+- element slopes and fluxes
+
+If `export_csv = True`, the solver writes:
+
+- `out/csv/output_fea1d.csv`
+
+If `plot_result = True` and `matplotlib` is installed, the solver also opens a plot comparing:
+
+- FEA nodal solution
+- exact solution, if available
+
+## Implementation Notes
+
+The current solver in `solver1d.py` does the following:
+
+- validates the problem definition in `bvp1d.py`
+- builds the mesh from the selected mesh mode
+- assembles the global stiffness matrix and load vector
+- applies Neumann contributions to the force vector
+- reduces the system using prescribed Dirichlet DOFs
+- solves the reduced linear system
+- reconstructs the full nodal solution
+- computes reactions and element-level derived quantities
+- optionally exports CSV data and plots results
+
+## Known Limitations
+
+- Only 1D problems are implemented
+- Only linear two-node elements are implemented
+- Only 2-point Gauss quadrature is supported
+- The CSV filename still uses the legacy name `output_fea1d.csv`
+- Plotting currently focuses on a simple 1D line result view
+
+## Future Enhancements
+
+Planned or recommended next steps:
+
+- Add a 2D finite element solver for triangular and quadrilateral meshes
+- Add a 3D finite element solver for tetrahedral and hexahedral meshes
+- Support richer element formulations and higher-order shape functions
+- Add material and source definitions that vary by region or subdomain
+- Improve post-processing and visual artefacts, including:
+- higher-quality mesh rendering
+- deformed-shape visualization
+- contour and heat-map plots for 2D fields
+- surface and slice plots for 3D fields
+- stress/flux overlays and cleaner legends/colorbars
+- export plots and reports directly to files under `out/`
+- Add input validation for more physical and numerical edge cases
+- Add automated tests for mesh generation, assembly, and boundary-condition handling
+- Add benchmark problems for 1D, 2D, and 3D verification
+
+## Practical Next Step
+
+The cleanest next extension is to keep the current root-level structure and add parallel entrypoints such as:
+
+- `solver2d.py`
+- `solver3d.py`
+- `bvp2d.py`
+- `bvp3d.py`
+
+while continuing to reuse:
+
+- `root/_root_bootstrap.py`
+- `matrix.py`
+- `paths.py`
+- shared reporting and plotting helpers in `utils.py`

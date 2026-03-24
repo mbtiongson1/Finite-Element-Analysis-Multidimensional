@@ -1,27 +1,13 @@
-# Wrapper Scripts (`root/`)
+# Bootstrap Wrapper
 
-This folder contains optional wrapper scripts so you can run commands like `python root/solver.py` instead of `python -m ...`.
+This folder now only keeps the bootstrap helper and the optional wrapper for the root-level solver.
 
-Why this exists:
-- Keeps the repository root clean (no duplicated entrypoints next to the package).
-- Preserves a simple `python <script>.py` workflow for coursework runs.
+## Active Entry Point
 
-## Main Drivers
-
-- `python root/solver.py`
-- `python root/systems.py`
-- `python root/shooting.py`
-- `python root/function.py`
-
-## Methods / Tools
-
-- `python root/rk4.py` (and other method wrappers)
-- `python root/FD.py rk4`
+- `python root/solver1d.py`
 
 ## Notes
 
-- These wrappers modify `sys.path` to ensure the repo root is importable, so they work even if you run them from inside `root/`.
-- Preferred style (no wrappers) remains:
-  - `python -m numerical_methods.main.solver`
-  - `python -m numerical_methods.methods.rk4`
-
+- `root/_root_bootstrap.py` stays here so future wrappers can reuse the same launch path.
+- Preferred direct execution is:
+  - `python -m solver1d`
