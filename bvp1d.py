@@ -22,6 +22,8 @@ def s(x):
 left_bc = {"type": "dirichlet", "value": 0.0}
 right_bc = {"type": "dirichlet", "value": 0.0}
 
+boundaryData = {"left": left_bc, "right": right_bc}
+
 
 mesh_mode = "elements"
 base_h = 0.25
@@ -35,6 +37,12 @@ quadrature_order = 2
 print_level = "verbose"
 export_csv = True
 plot_result = True
+
+problemData = {
+    "diffusion": k,
+    "reaction": c,
+    "source": s,
+}
 
 
 def exact_solution(x):

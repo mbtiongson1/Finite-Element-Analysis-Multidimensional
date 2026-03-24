@@ -1,6 +1,11 @@
-# Root-Level 1D Finite Element Solver
+# Root-Level Finite Element Solvers
 
-This repository contains a flattened root-level finite element analysis workflow centered on a 1D scalar boundary value solver. The current implementation solves linear second-order problems of the form:
+This repository contains a flattened root-level finite element analysis workflow with:
+
+- a 1D scalar boundary value solver
+- a Phase 1 2D scalar finite-element solver for unit-square benchmark problems
+
+The 1D implementation solves linear second-order problems of the form:
 
 ```text
 -(k(x) u'(x))' + c(x) u(x) = s(x)
@@ -10,9 +15,11 @@ on a 1D domain with configurable boundary conditions, mesh controls, CSV export,
 
 ## Current Scope
 
-- 1D finite element solver only
+- 1D finite element solver
+- 2D scalar finite element solver on `tri3` and `quad4` meshes
 - Scalar linear boundary value problems
 - Two-node linear elements
+- Three-node triangles and four-node bilinear quadrilaterals
 - 2-point Gauss quadrature
 - Dirichlet and Neumann boundary conditions
 - Uniform or manually specified meshes
@@ -22,15 +29,23 @@ on a 1D domain with configurable boundary conditions, mesh controls, CSV export,
 ## Repository Layout
 
 ```text
-.
+.  
 ├── solver1d.py            # Main 1D solver entrypoint
+├── solver2d.py            # Main 2D solver entrypoint
 ├── bvp1d.py               # Problem definition and solver settings
+├── bvp2d.py               # 2D benchmark problem and BC helpers
+├── assembler.py           # Shared 1D/2D assembly helpers
 ├── matrix.py              # Linear system solver helper
 ├── paths.py               # Output-path utilities
 ├── utils.py               # Console/plot helper utilities
+├── benchmarks/
+│   └── poisson_unit_square.py
+├── tests/
+│   └── test_solver2d.py
 ├── root/
 │   ├── _root_bootstrap.py # Wrapper bootstrap for future entrypoints
-│   └── solver1d.py        # Optional wrapper for the root-level solver
+│   ├── solver1d.py        # Optional wrapper for the root-level 1D solver
+│   └── solver2d.py        # Optional wrapper for the root-level 2D solver
 ├── out/
 │   └── csv/               # Generated CSV outputs
 └── docs/
@@ -73,15 +88,23 @@ Preferred direct execution:
 python -m solver1d
 ```
 
+```bash
+python -m solver2d
+```
+
 Optional wrapper execution:
 
 ```bash
 python root/solver1d.py
 ```
 
+```bash
+python root/solver2d.py
+```
+
 The wrapper is kept so the bootstrap mechanism under `root/_root_bootstrap.py` remains available for future solvers and tools.
 
-## Problem Configuration
+## 1D Problem Configuration
 
 Edit `bvp1d.py` to define the problem being solved.
 
@@ -217,11 +240,40 @@ The current solver in `solver1d.py` does the following:
 
 ## Known Limitations
 
-- Only 1D problems are implemented
-- Only linear two-node elements are implemented
-- Only 2-point Gauss quadrature is supported
+- The 2D solver is a Phase 1 core solver only
+- 2D post-processing is still text-only
+- Only `tri3` and `quad4` elements are supported in 2D
+- The shared linear solver is dense NumPy solve via `matrix.py`
 - The CSV filename still uses the legacy name `output_fea1d.csv`
 - Plotting currently focuses on a simple 1D line result view
+
+## 2D Benchmark
+
+The default 2D setup in `bvp2d.py` is the unit-square Poisson problem:
+
+```text
+-Δu = 2π² sin(πx) sin(πy),  u = 0 on the boundary
+```
+
+with exact solution:
+
+```text
+u(x, y) = sin(πx) sin(πy)
+```
+
+You can run the reusable benchmark script directly:
+
+```bash
+python benchmarks/poisson_unit_square.py
+```
+
+## Tests
+
+Run the Phase 1 2D tests with:
+
+```bash
+pytest tests/test_solver2d.py
+```
 
 ## Future Enhancements
 
