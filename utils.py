@@ -1,5 +1,3 @@
-# utils.py
-
 def print_table(headers, rows):
     """
     Print a table nicely formatted for console output.
@@ -121,15 +119,7 @@ def plot_polynomial(xs, ys, coeffs, label="Polynomial Fit", title="Polynomial Ap
 
 
 def plot_polynomials_compare(xs, ys, coeffs_list, labels, title="Polynomial Comparison", x_end=None, x_actual=None, y_actual=None, show_data_points=True):
-    """Plot multiple fitted polynomials on the same axes for comparison.
-
-    xs: array-like, x-coordinates of data points
-    ys: array-like, y-coordinates of data points
-    coeffs_list: list of coefficient arrays (each array is a_0..a_p for one fit)
-    labels: list of labels for each polynomial curve
-    title: title of the plot
-    x_end: if provided, extend curves to this x value (e.g. xn)
-    """
+    """Plot multiple fitted polynomials on the same axes for comparison."""
     try:
         import matplotlib.pyplot as plt
         import numpy as np
