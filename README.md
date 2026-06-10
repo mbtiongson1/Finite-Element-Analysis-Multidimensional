@@ -1,5 +1,7 @@
 # Root-Level Finite Element Solvers
 
+[![Powered by Gaia](https://gaia.tiongson.co/badges/powered-by-gaia.svg)](https://gaia.tiongson.co/)
+
 This repository contains a flattened root-level finite element analysis workflow with:
 
 - a 1D scalar boundary value solver
